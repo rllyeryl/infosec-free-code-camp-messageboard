@@ -12,8 +12,7 @@ const runner            = require('./test-runner');
 const app = express();
 const mongoose = require('mongoose');
 
-// server.js
-mongoose.connect(process.env.DB, { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose.connect(process.env.DB)
   .then(() => console.log("Database connected"))
   .catch(err => console.log(err));
 
