@@ -3,14 +3,28 @@ require('dotenv').config();
 const express     = require('express');
 const bodyParser  = require('body-parser');
 const cors        = require('cors');
+const helmet = require('helmet');
 
 const apiRoutes         = require('./routes/api.js');
 const fccTestingRoutes  = require('./routes/fcctesting.js');
 const runner            = require('./test-runner');
 
 const app = express();
+const mongoose = require('mongoose');
+
+// server.js
+mongoose.connect(process.env.DB, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log("Database connected"))
+  .catch(err => console.log(err));
 
 app.use('/public', express.static(process.cwd() + '/public'));
+
+// only allow site to be loaded in an iFrame on own pages.
+// do not allow DNS prefetching.
+app.use(helmet({
+  frameguard: { action: 'sameorigin' },
+  dnsPrefetchControl: { allow: false }
+}));
 
 app.use(cors({origin: '*'})); //For FCC testing purposes only
 
