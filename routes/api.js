@@ -2,89 +2,153 @@
 const { Thread } = require('../models');
 
 module.exports = function (app) {
-
-
+  
+  // --- THREAD ROUTES ---
   app.route('/api/threads/:board')
-
-    // Create a new thread
     .post(async (req, res) => {
       const { text, delete_password } = req.body;
       const board = req.params.board;
-      const now = new Date();
-
       try {
-        const thread = new Thread({
-          board,
-          text,
-          delete_password,
-          created_on: now,
-          bumped_on: now,
-          reported: false,
+        await Thread.create({
+          board: board,
+          text: text,
+          delete_password: delete_password,
           replies: []
         });
-
-        const saved = await thread.save();
-        res.json(saved);
+        res.redirect(`/b/${board}/`);
       } catch (err) {
-        res.send('error');
+        res.status(500).send("Error creating thread");
       }
     })
 
-    // View 10 most recent threads
     .get(async (req, res) => {
       const board = req.params.board;
-
       try {
-        const threads = await Thread.find({ board })
+        const threads = await Thread.find({ board: board })
           .sort({ bumped_on: -1 })
           .limit(10)
           .lean();
 
-        const cleaned = threads.map(t => {
-          delete t.delete_password;
-          delete t.reported;
-
-          t.replycount = t.replies.length;
-          t.replies = t.replies.slice(-3).map(r => {
-            delete r.delete_password;
-            delete r.reported;
-            return r;
-          });
-
-          return t;
+        const result = threads.map(thread => {
+          delete thread.delete_password;
+          delete thread.reported;
+          thread.replycount = thread.replies.length;
+          thread.replies = thread.replies
+            .sort((a, b) => b.created_on - a.created_on)
+            .slice(0, 3)
+            .map(reply => {
+              delete reply.delete_password;
+              delete reply.reported;
+              return reply;
+            });
+          return thread;
         });
-
-        res.json(cleaned);
+        res.json(result);
       } catch (err) {
-        res.send('error');
+        res.status(500).json({ error: "Could not fetch threads" });
       }
     })
 
-    // Report a thread
     .put(async (req, res) => {
       const { thread_id } = req.body;
-
       try {
-        await Thread.findByIdAndUpdate(thread_id, { reported: true });
-        res.send('reported');
+        const updated = await Thread.findByIdAndUpdate(thread_id, { reported: true });
+        if (!updated) return res.send("thread not found");
+        res.send("reported");
       } catch (err) {
-        res.send('error');
+        res.send("error");
       }
     })
 
-    // Delete a thread
     .delete(async (req, res) => {
       const { thread_id, delete_password } = req.body;
-
       try {
         const thread = await Thread.findById(thread_id);
-
-        if (!thread) return res.send('error');
-
+        if (!thread) return res.send("thread not found");
         if (thread.delete_password === delete_password) {
           await Thread.findByIdAndDelete(thread_id);
-          res.send('success');
+          res.send("success");
         } else {
-          res.send('incorrect password');
+          res.send("incorrect password");
         }
       } catch (err) {
+        res.send("error");
+      }
+    });
+
+  // --- REPLY ROUTES ---
+  app.route('/api/replies/:board')
+    .post(async (req, res) => {
+      const { thread_id, text, delete_password } = req.body;
+      const board = req.params.board;
+      const now = new Date();
+      try {
+        const updated = await Thread.findByIdAndUpdate(thread_id, {
+          $set: { bumped_on: now },
+          $push: { 
+            replies: { text, delete_password, created_on: now, reported: false } 
+          }
+        });
+        if (!updated) return res.send("thread not found");
+        res.redirect(`/b/${board}/${thread_id}`);
+      } catch (err) {
+        res.status(500).send("Error adding reply");
+      }
+    })
+    
+    .get(async (req, res) => {
+      const thread_id = req.query.thread_id;
+      try {
+        const thread = await Thread.findById(thread_id).lean();
+        if (!thread) return res.json({ error: "no thread found" });
+        
+        delete thread.delete_password;
+        delete thread.reported;
+        thread.replies.forEach(reply => {
+          delete reply.delete_password;
+          delete reply.reported;
+        });
+        res.json(thread);
+      } catch (err) {
+        res.status(500).json({ error: "Could not fetch thread" });
+      }
+    })
+
+    .put(async (req, res) => {
+      const { thread_id, reply_id } = req.body;
+      try {
+        const thread = await Thread.findById(thread_id);
+        if (!thread) return res.send("thread not found");
+        
+        const reply = thread.replies.id(reply_id); // Finding sub-document
+        if (!reply) return res.send("reply not found");
+        
+        reply.reported = true;
+        await thread.save();
+        res.send("reported");
+      } catch (err) {
+        res.send("error");
+      }
+    })
+
+    .delete(async (req, res) => {
+      const { thread_id, reply_id, delete_password } = req.body;
+      try {
+        const thread = await Thread.findById(thread_id);
+        if (!thread) return res.send("thread not found");
+        
+        const reply = thread.replies.id(reply_id);
+        if (!reply) return res.send("reply not found");
+
+        if (reply.delete_password === delete_password) {
+          reply.text = "[deleted]";
+          await thread.save();
+          res.send("success");
+        } else {
+          res.send("incorrect password");
+        }
+      } catch (err) {
+        res.send("error");
+      }
+    });
+};
