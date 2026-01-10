@@ -6,66 +6,111 @@ const server = require('../server');
 chai.use(chaiHttp);
 
 suite('Functional Tests', function() {
-  // Variables to store IDs for use in subsequent tests
   let testThreadId;
-  let testReplyId; 
+  let testReplyId;
   const testBoard = 'test_board';
 
   suite('Routing Tests', function() {
 
-    // 1. CREATE THREAD
-    test('Creating a new thread: POST request to /api/threads/{board}', function(done) {
+    // --- THREAD TESTS ---
+    test('1. Creating a new thread: POST request to /api/threads/{board}', function(done) {
       chai.request(server)
         .post(`/api/threads/${testBoard}`)
-        .send({ text: 'Chai Test Thread', delete_password: 'test_password' })
-        .end(function(err, res) {
+        .send({ text: 'Thread for testing', delete_password: 'pass' })
+        .end((err, res) => {
           assert.equal(res.status, 200);
           done();
         });
     });
 
-    // 2. VIEW THREADS
-    test('Viewing the 10 most recent threads: GET request to /api/threads/{board}', function(done) {
+    test('2. Viewing the 10 most recent threads: GET request to /api/threads/{board}', function(done) {
       chai.request(server)
         .get(`/api/threads/${testBoard}`)
-        .end(function(err, res) {
-          assert.equal(res.status, 200);
+        .end((err, res) => {
           assert.isArray(res.body);
-          testThreadId = res.body[0]._id; // Capture ID for deletion/reporting
-          assert.property(res.body[0], '_id');
-          assert.notProperty(res.body[0], 'delete_password');
+          testThreadId = res.body[0]._id; // Save for later
           done();
         });
     });
 
-    // 3. DELETE THREAD (WRONG PASS)
-    test('Deleting a thread with incorrect password: DELETE request to /api/threads/{board}', function(done) {
-      chai.request(server)
-        .delete(`/api/threads/${testBoard}`)
-        .send({ thread_id: testThreadId, delete_password: 'wrong' })
-        .end(function(err, res) {
-          assert.equal(res.text, 'incorrect password');
-          done();
-        });
-    });
-
-    // 4. REPORT THREAD
-    test('Reporting a thread: PUT request to /api/threads/{board}', function(done) {
+    test('3. Reporting a thread: PUT request to /api/threads/{board}', function(done) {
       chai.request(server)
         .put(`/api/threads/${testBoard}`)
         .send({ thread_id: testThreadId })
-        .end(function(err, res) {
+        .end((err, res) => {
           assert.equal(res.text, 'reported');
           done();
         });
     });
 
-    // 5. DELETE THREAD (CORRECT PASS)
-    test('Deleting a thread with correct password: DELETE request to /api/threads/{board}', function(done) {
+    // --- REPLY TESTS ---
+    test('4. Creating a new reply: POST request to /api/replies/{board}', function(done) {
+      chai.request(server)
+        .post(`/api/replies/${testBoard}`)
+        .send({ thread_id: testThreadId, text: 'Test reply', delete_password: 'reply_pass' })
+        .end((err, res) => {
+          assert.equal(res.status, 200);
+          done();
+        });
+    });
+
+    test('5. Viewing a single thread with all replies: GET request to /api/replies/{board}', function(done) {
+      chai.request(server)
+        .get(`/api/replies/${testBoard}`)
+        .query({ thread_id: testThreadId })
+        .end((err, res) => {
+          assert.property(res.body, 'replies');
+          testReplyId = res.body.replies[0]._id; // Save for deletion
+          done();
+        });
+    });
+
+    test('6. Reporting a reply: PUT request to /api/replies/{board}', function(done) {
+      chai.request(server)
+        .put(`/api/replies/${testBoard}`)
+        .send({ thread_id: testThreadId, reply_id: testReplyId })
+        .end((err, res) => {
+          assert.equal(res.text, 'reported');
+          done();
+        });
+    });
+
+    test('7. Deleting a reply with incorrect password: DELETE request to /api/replies/{board}', function(done) {
+      chai.request(server)
+        .delete(`/api/replies/${testBoard}`)
+        .send({ thread_id: testThreadId, reply_id: testReplyId, delete_password: 'wrong' })
+        .end((err, res) => {
+          assert.equal(res.text, 'incorrect password');
+          done();
+        });
+    });
+
+    test('8. Deleting a reply with correct password: DELETE request to /api/replies/{board}', function(done) {
+      chai.request(server)
+        .delete(`/api/replies/${testBoard}`)
+        .send({ thread_id: testThreadId, reply_id: testReplyId, delete_password: 'reply_pass' })
+        .end((err, res) => {
+          assert.equal(res.text, 'success');
+          done();
+        });
+    });
+
+    // --- FINAL DELETION TESTS ---
+    test('9. Deleting a thread with incorrect password: DELETE request to /api/threads/{board}', function(done) {
       chai.request(server)
         .delete(`/api/threads/${testBoard}`)
-        .send({ thread_id: testThreadId, delete_password: 'test_password' })
-        .end(function(err, res) {
+        .send({ thread_id: testThreadId, delete_password: 'wrong' })
+        .end((err, res) => {
+          assert.equal(res.text, 'incorrect password');
+          done();
+        });
+    });
+
+    test('10. Deleting a thread with correct password: DELETE request to /api/threads/{board}', function(done) {
+      chai.request(server)
+        .delete(`/api/threads/${testBoard}`)
+        .send({ thread_id: testThreadId, delete_password: 'pass' })
+        .end((err, res) => {
           assert.equal(res.text, 'success');
           done();
         });

@@ -24,8 +24,8 @@
 	],
 	"license": "MIT",
 	"devDependencies": {
-		"chai": "^6.2.2",
-		"chai-http": "^5.1.2",
+		"chai": "^4.3.7",
+		"chai-http": "^4.3.0",
 		"mocha": "^11.7.5"
 	}
 }
