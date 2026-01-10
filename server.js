@@ -22,10 +22,11 @@ app.use('/public', express.static(process.cwd() + '/public'));
 // do not allow DNS prefetching.
 app.use(helmet({
   frameguard: { action: 'sameorigin' },
-  dnsPrefetchControl: { allow: false }
+  dnsPrefetchControl: { allow: false },
+  referrerPolicy: { policy: 'same-origin' }
 }));
 
-app.use(cors({origin: '*'})); //For FCC testing purposes only
+app.use(cors({origin: '*'})); 
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
